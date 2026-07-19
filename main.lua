@@ -51,21 +51,18 @@ local logger           = require("logger")
 local _                = require("gettext")
 local util             = require("util")
 
--- Suporte HTTPS via LuaSec (disponível na maioria das builds modernas do KOReader)
+-- Suporte HTTPS via LuaSec
 local https_ok, ssl_https = pcall(require, "ssl.https")
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- Sistema de tradução
 -- ═════════════════════════════════════════════════════════════════════════════
-local function T(text)
-    return text
-end
-
 local translations = {
     pt = {
         fortune_cookie = "Biscoito da Sorte",
         open_cookie = "Abrir biscoito",
-        config_apis = "Configurar APIs",
+        settings = "Configurações",
+        config_apis = "APIs",
         local_phrases = "Frases locais",
         restore_default = "Restaurar padrão",
         view_phrases = "Ver frases carregadas",
@@ -74,8 +71,7 @@ local translations = {
         close = "Fechar",
         opening_cookie = "Abrindo seu biscoito…",
         offline_mode = "Modo offline - frase local",
-        settings_title = "Configurar APIs",
-        settings_help = "Toque no nome para ativar/desativar",
+        settings_title = "Configurações",
         save = "Salvar",
         new_phrase_title = "Nova frase",
         phrase_hint = "Digite a frase (sem autor)",
@@ -89,14 +85,20 @@ local translations = {
         no_phrases = "Nenhuma frase local carregada.",
         empty_file = "Arquivo de frases vazio ou sem frases válidas.",
         phrases_loaded = "Carregadas %d frases do arquivo interno.",
-        language = "Idioma / Language",
+        language = "Idioma",
         portuguese = "Português",
         english = "English",
+        one_per_day = "Modo 1 por dia",
+        one_per_day_desc = "Permite abrir apenas 1 biscoito por dia",
+        already_opened_today = "Você já abriu seu biscoito hoje! Volte amanhã.",
+        one_per_day_enabled = "Modo 1 por dia ativado.",
+        one_per_day_disabled = "Modo 1 por dia desativado.",
     },
     en = {
         fortune_cookie = "Fortune Cookie",
         open_cookie = "Open cookie",
-        config_apis = "Configure APIs",
+        settings = "Settings",
+        config_apis = "APIs",
         local_phrases = "Local phrases",
         restore_default = "Restore default",
         view_phrases = "View loaded phrases",
@@ -105,8 +107,7 @@ local translations = {
         close = "Close",
         opening_cookie = "Opening your cookie…",
         offline_mode = "Offline mode - local phrase",
-        settings_title = "Configure APIs",
-        settings_help = "Tap name to enable/disable",
+        settings_title = "Settings",
         save = "Save",
         new_phrase_title = "New phrase",
         phrase_hint = "Type the phrase (without author)",
@@ -120,16 +121,37 @@ local translations = {
         no_phrases = "No local phrases loaded.",
         empty_file = "Phrases file empty or no valid phrases.",
         phrases_loaded = "Loaded %d phrases from internal file.",
-        language = "Idioma / Language",
+        language = "Language",
         portuguese = "Português",
         english = "English",
+        one_per_day = "One per day mode",
+        one_per_day_desc = "Allow only 1 cookie per day",
+        already_opened_today = "You've already opened your cookie today! Come back tomorrow.",
+        one_per_day_enabled = "One per day mode enabled.",
+        one_per_day_disabled = "One per day mode disabled.",
     }
 }
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- Frases locais padrão (fallback offline)
+-- Símbolos aleatórios para o rodapé
 -- ═════════════════════════════════════════════════════════════════════════════
-local DEFAULT_FORTUNES = {
+local FOOTER_SYMBOLS = {
+    "(｡•ᴗ•｡)♡",
+    "(◕‿◕)",
+    "~ ☆ ~",
+    "♪ (ˆ▽ˆ) ♪",
+    "(˘▽˘)っ♨",
+    "✧ (◍•ᴗ•◍) ✧",
+    "(づ｡◕‿‿◕｡)づ",
+    "~ ★ ~",
+    "(｡♥‿♥｡)",
+    "✿ (◠‿◠) ✿",
+}
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Frases locais padrão (fallback offline) - PT e EN
+-- ═════════════════════════════════════════════════════════════════════════════
+local DEFAULT_FORTUNES_PT = {
     { q = "Um pequeno gesto multiplica as suas alegrias." },
     { q = "A esperança iluminará os seus passos de hoje em diante." },
     { q = "A verdadeira felicidade mudará a sua visão do mundo." },
@@ -170,338 +192,58 @@ local DEFAULT_FORTUNES = {
     { q = "A fé recompensa os que sabem esperar." },
     { q = "Siga o seu coração, mas leve o seu cérebro junto." },
     { q = "Uma nova oportunidade multiplica as suas alegrias." },
-    { q = "O sucesso nasce das sementes que você planta hoje." },
-    { q = "A jornada é o seu maior tesouro escondido." },
-    { q = "A compaixão revela a sua verdadeira essência." },
-    { q = "A compaixão sempre encontra uma maneira de florescer." },
-    { q = "Um novo amanhecer é o primeiro passo para grandes conquistas." },
-    { q = "A perseverança multiplica as suas alegrias." },
-    { q = "A sorte conspira a seu favor neste momento." },
-    { q = "O amanhã é um presente que você deve abraçar." },
-    { q = "O conhecimento nasce das sementes que você planta hoje." },
-    { q = "A esperança revela a sua verdadeira essência." },
-    { q = "O sucesso guiará você por águas mais calmas." },
-    { q = "Uma nova oportunidade está prestes a bater na sua porta." },
-    { q = "O poder do agora nasce das sementes que você planta hoje." },
-    { q = "A beleza da alma conspira a seu favor neste momento." },
-    { q = "Um pequeno gesto guiará você por águas mais calmas." },
-    { q = "O acaso está mais perto do que você imagina." },
-    { q = "A gentileza iluminará os seus passos de hoje em diante." },
-    { q = "O perdão é a fundação de um futuro brilhante." },
-    { q = "A verdadeira amizade supera qualquer obstáculo no caminho." },
-    { q = "A paz interior abre caminhos que você não imaginava." },
-    { q = "A sorte multiplica as suas alegrias." },
-    { q = "O amor verdadeiro nasce das sementes que você planta hoje." },
-    { q = "Uma atitude positiva está mais perto do que você imagina." },
-    { q = "A beleza da alma nunca se esgota quando é verdadeira." },
-    { q = "Uma nova oportunidade vai transformar a sua realidade em breve." },
-    { q = "O entusiasmo conspira a seu favor neste momento." },
-    { q = "A jornada abre caminhos que você não imaginava." },
-    { q = "O entusiasmo está prestes a bater na sua porta." },
-    { q = "O entusiasmo guiará você por águas mais calmas." },
-    { q = "O amanhã sempre encontra uma maneira de florescer." },
-    { q = "Um pequeno gesto vai lhe proporcionar momentos inesquecíveis." },
-    { q = "A gentileza lhe trará uma grande surpresa muito em breve." },
-    { q = "A bondade cura até as feridas mais profundas." },
-    { q = "A gentileza cria laços que o tempo não apaga." },
-    { q = "A compaixão é o reflexo do seu coração puro." },
-    { q = "A força de vontade cura até as feridas mais profundas." },
-    { q = "A luz dentro de você é a chave para abrir muitas portas." },
-    { q = "O respeito fortalece o seu espírito para os desafios." },
-    { q = "A paz interior está mais perto do que você imagina." },
-    { q = "Um novo amanhecer revela a sua verdadeira essência." },
-    { q = "Um pequeno gesto é o primeiro passo para grandes conquistas." },
-    { q = "A bondade é a fundação de um futuro brilhante." },
-    { q = "O conhecimento traz recompensas inestimáveis." },
-    { q = "Abra a sua mente para novas e maravilhosas experiências." },
-    { q = "A bondade abre caminhos que você não imaginava." },
-    { q = "O amanhã está mais perto do que você imagina." },
-    { q = "O sucesso supera qualquer obstáculo no caminho." },
-    { q = "A luz dentro de você revela os segredos mais belos da alma." },
-    { q = "Um pequeno gesto é a fundação de um futuro brilhante." },
-    { q = "O poder do agora é o primeiro passo para grandes conquistas." },
-    { q = "Uma atitude positiva está prestes a bater na sua porta." },
-    { q = "A harmonia conspira a seu favor neste momento." },
-    { q = "A sabedoria está mais perto do que você imagina." },
-    { q = "Uma atitude positiva vai lhe proporcionar momentos inesquecíveis." },
-    { q = "O entusiasmo traz a calma após a tempestade." },
-    { q = "A harmonia é o seu maior tesouro escondido." },
-    { q = "Um grande amor vai lhe proporcionar momentos inesquecíveis." },
-    { q = "A luz dentro de você iluminará os seus passos de hoje em diante." },
-    { q = "A paz interior guiará você por águas mais calmas." },
-    { q = "A força de vontade nunca se esgota quando é verdadeira." },
-    { q = "O perdão supera qualquer obstáculo no caminho." },
-    { q = "A harmonia iluminará os seus passos de hoje em diante." },
-    { q = "A força de vontade mudará a sua visão do mundo." },
-    { q = "O universo é a fundação de um futuro brilhante." },
-    { q = "Um grande amor nasce das sementes que você planta hoje." },
-    { q = "O amanhã lhe trará uma grande surpresa muito em breve." },
-    { q = "A paciência iluminará os seus passos de hoje em diante." },
-    { q = "A perseverança é a fundação de um futuro brilhante." },
-    { q = "Não tenha medo de dar o primeiro passo, o universo ajudará no resto." },
-    { q = "A intuição lhe dará a resposta que procura." },
-    { q = "O entusiasmo é o primeiro passo para grandes conquistas." },
-    { q = "O conhecimento fortalece o seu espírito para os desafios." },
-    { q = "A perseverança é a luz que afasta a escuridão." },
-    { q = "O seu coração cura até as feridas mais profundas." },
-    { q = "Um sorriso sincero cura até as feridas mais profundas." },
-    { q = "O seu coração lhe trará uma grande surpresa muito em breve." },
-    { q = "Um grande amor recompensa os que sabem esperar." },
-    { q = "A gentileza traz recompensas inestimáveis." },
-    { q = "O respeito traz a calma após a tempestade." },
-    { q = "A coragem floresce no momento certo." },
-    { q = "O verdadeiro amigo mudará a sua visão do mundo." },
-    { q = "O universo está mais perto do que você imagina." },
-    { q = "Uma nova oportunidade é a luz que afasta a escuridão." },
-    { q = "A sabedoria sempre encontra uma maneira de florescer." },
-    { q = "A esperança sempre encontra uma maneira de florescer." },
-    { q = "A paciência lhe dará a resposta que procura." },
-    { q = "Um pequeno gesto traz recompensas inestimáveis." },
-    { q = "A bondade guiará você por águas mais calmas." },
-    { q = "O entusiasmo multiplica as suas alegrias." },
-    { q = "Um novo amanhecer traz recompensas inestimáveis." },
-    { q = "A paz interior é a chave para abrir muitas portas." },
-    { q = "O sucesso é o primeiro passo para grandes conquistas." },
-    { q = "O sucesso cura até as feridas mais profundas." },
-    { q = "Um novo amanhecer iluminará os seus passos de hoje em diante." },
-    { q = "O amanhã é a fundação de um futuro brilhante." },
-    { q = "O otimismo floresce no momento certo." },
-    { q = "A perseverança é a chave para abrir muitas portas." },
-    { q = "O poder do agora cura até as feridas mais profundas." },
-    { q = "A vida é o reflexo do seu coração puro." },
-    { q = "A esperança nasce das sementes que você planta hoje." },
-    { q = "O conhecimento lhe trará uma grande surpresa muito em breve." },
-    { q = "O respeito multiplica as suas alegrias." },
-    { q = "O entusiasmo revela os segredos mais belos da alma." },
-    { q = "Confie na sua intuição, ela sabe o caminho." },
-    { q = "A beleza da alma lhe dará a resposta que procura." },
-    { q = "Um sorriso sincero é a luz que afasta a escuridão." },
-    { q = "A bondade vai transformar a sua realidade em breve." },
-    { q = "O amanhã está prestes a bater na sua porta." },
-    { q = "A vida é o seu maior tesouro escondido." },
-    { q = "A perseverança floresce no momento certo." },
-    { q = "O verdadeiro amigo está prestes a bater na sua porta." },
-    { q = "A sua criatividade cura até as feridas mais profundas." },
-    { q = "O verdadeiro amigo fortalece o seu espírito para os desafios." },
-    { q = "A jornada lhe dará a resposta que procura." },
-    { q = "A gratidão vai transformar a sua realidade em breve." },
-    { q = "O acaso recompensa os que sabem esperar." },
-    { q = "O respeito é a luz que afasta a escuridão." },
-    { q = "O entusiasmo mudará a sua visão do mundo." },
-    { q = "Um pequeno gesto é um presente que você deve abraçar." },
-    { q = "A gentileza multiplica as suas alegrias." },
-    { q = "A bondade nasce das sementes que você planta hoje." },
-    { q = "O conhecimento nunca se esgota quando é verdadeiro." },
-    { q = "O otimismo é a fundação de um futuro brilhante." },
-    { q = "A vida está prestes a bater na sua porta." },
-    { q = "Um novo amanhecer nasce das sementes que você planta hoje." },
-    { q = "A harmonia é o reflexo do seu coração puro." },
-    { q = "O universo revela os segredos mais belos da alma." },
-    { q = "A verdadeira felicidade guiará você por águas mais calmas." },
-    { q = "A esperança traz recompensas inestimáveis." },
-    { q = "A gentileza guiará você por águas mais calmas." },
-    { q = "A gratidão vai lhe proporcionar momentos inesquecíveis." },
-    { q = "A intuição nasce das sementes que você planta hoje." },
-    { q = "A sabedoria cria laços que o tempo não apaga." },
-    { q = "A intuição cura até as feridas mais profundas." },
-    { q = "O respeito traz recompensas inestimáveis." },
-    { q = "O amor verdadeiro cria laços que o tempo não apaga." },
-    { q = "Uma nova oportunidade fortalece o seu espírito para os desafios." },
-    { q = "O universo vai transformar a sua realidade em breve." },
-    { q = "A paz interior cura até as feridas mais profundas." },
-    { q = "O conhecimento é a chave para abrir muitas portas." },
-    { q = "A coragem está prestes a bater na sua porta." },
-    { q = "A coragem é o seu maior tesouro escondido." },
-    { q = "O seu esforço cura até as feridas mais profundas." },
-    { q = "O poder do agora traz recompensas inestimáveis." },
-    { q = "A bondade está mais perto do que você imagina." },
-    { q = "O respeito recompensa os que sabem esperar." },
-    { q = "O otimismo conspira a seu favor neste momento." },
-    { q = "Um sorriso sincero é a chave para abrir muitas portas." },
-    { q = "A força de vontade recompensa os que sabem esperar." },
-    { q = "O acaso revela os segredos mais belos da alma." },
-    { q = "A verdadeira amizade floresce no momento certo." },
-    { q = "A gratidão é a fundação de um futuro brilhante." },
-    { q = "O amor verdadeiro vai transformar a sua realidade em breve." },
-    { q = "A gentileza traz a calma após a tempestade." },
-    { q = "O tempo está prestes a bater na sua porta." },
-    { q = "O otimismo vai transformar a sua realidade em breve." },
-    { q = "O tempo traz a calma após a tempestade." },
-    { q = "A esperança é o reflexo do seu coração puro." },
-    { q = "A intuição floresce no momento certo." },
-    { q = "Uma atitude positiva é um presente que você deve abraçar." },
-    { q = "A paz interior vai transformar a sua realidade em breve." },
-    { q = "A fé é o primeiro passo para grandes conquistas." },
-    { q = "A verdadeira felicidade lhe trará uma grande surpresa muito em breve." },
-    { q = "O seu coração é o primeiro passo para grandes conquistas." },
-    { q = "O poder do agora abre caminhos que você não imaginava." },
-    { q = "Uma atitude positiva é o reflexo do seu coração puro." },
-    { q = "O seu coração vai lhe proporcionar momentos inesquecíveis." },
-    { q = "O entusiasmo fortalece o seu espírito para os desafios." },
-    { q = "A vida abre caminhos que você não imaginava." },
-    { q = "A paz interior recompensa os que sabem esperar." },
-    { q = "A sabedoria conspira a seu favor neste momento." },
-    { q = "Uma atitude positiva é o primeiro passo para grandes conquistas." },
-    { q = "A paz interior nasce das sementes que você planta hoje." },
-    { q = "A sorte sempre encontra uma maneira de florescer." },
-    { q = "A fé iluminará os seus passos de hoje em diante." },
-    { q = "O seu coração conspira a seu favor neste momento." },
-    { q = "O verdadeiro amigo traz a calma após a tempestade." },
-    { q = "A intuição guiará você por águas mais calmas." },
-    { q = "A luz dentro de você é a luz que afasta a escuridão." },
-    { q = "O universo é a chave para abrir muitas portas." },
-    { q = "A força de vontade cria laços que o tempo não apaga." },
-    { q = "Um novo amanhecer é um presente que você deve abraçar." },
-    { q = "A coragem abre caminhos que você não imaginava." },
-    { q = "O perdão recompensa os que sabem esperar." },
-    { q = "O perdão traz a calma após a tempestade." },
-    { q = "O seu esforço revela os segredos mais belos da alma." },
-    { q = "A intuição recompensa os que sabem esperar." },
-    { q = "O seu coração revela os segredos mais belos da alma." },
-    { q = "O seu destino está prestes a bater na sua porta." },
-    { q = "A verdadeira amizade traz recompensas inestimáveis." },
-    { q = "A jornada está prestes a bater na sua porta." },
-    { q = "O entusiasmo sempre encontra uma maneira de florescer." },
-    { q = "Um sorriso sincero está mais perto do que você imagina." },
-    { q = "A compaixão vai lhe proporcionar momentos inesquecíveis." },
-    { q = "Um sorriso sincero vai transformar a sua realidade em breve." },
-    { q = "O seu destino supera qualquer obstáculo no caminho." },
-    { q = "O amanhã traz a calma após a tempestade." },
-    { q = "A sabedoria abre caminhos que você não imaginava." },
-    { q = "A jornada supera qualquer obstáculo no caminho." },
-    { q = "A sabedoria traz a calma após a tempestade." },
-    { q = "Um grande amor conspira a seu favor neste momento." },
-    { q = "A fé cria laços que o tempo não apaga." },
-    { q = "A jornada revela a sua verdadeira essência." },
-    { q = "A intuição multiplica as suas alegrias." },
-    { q = "A verdadeira amizade revela os segredos mais belos da alma." },
-    { q = "O seu coração iluminará os seus passos de hoje em diante." },
-    { q = "O amor verdadeiro lhe dará a resposta que procura." },
-    { q = "O tempo cria laços que o tempo não apaga." },
-    { q = "A coragem revela a sua verdadeira essência." },
-    { q = "Um pequeno gesto supera qualquer obstáculo no caminho." },
-    { q = "A sua criatividade é o reflexo do seu coração puro." },
-    { q = "O seu coração fortalece o seu espírito para os desafios." },
-    { q = "O amanhã mudará a sua visão do mundo." },
-    { q = "A intuição revela a sua verdadeira essência." },
-    { q = "A paz interior é a luz que afasta a escuridão." },
-    { q = "O tempo lhe trará uma grande surpresa muito em breve." },
-    { q = "O poder do agora guiará você por águas mais calmas." },
-    { q = "A jornada revela os segredos mais belos da alma." },
-    { q = "A sabedoria guiará você por águas mais calmas." },
-    { q = "O conhecimento mudará a sua visão do mundo." },
-    { q = "A vida é a fundação de um futuro brilhante." },
-    { q = "O entusiasmo é a luz que afasta a escuridão." },
-    { q = "A intuição iluminará os seus passos de hoje em diante." },
-    { q = "A bondade é o primeiro passo para grandes conquistas." },
-    { q = "O seu destino sempre encontra uma maneira de florescer." },
-    { q = "O seu coração abre caminhos que você não imaginava." },
-    { q = "O seu esforço lhe dará a resposta que procura." },
-    { q = "A força de vontade vai lhe proporcionar momentos inesquecíveis." },
-    { q = "O respeito supera qualquer obstáculo no caminho." },
-    { q = "O seu coração é o reflexo da sua alma pura." },
-    { q = "A bondade recompensa os que sabem esperar." },
-    { q = "O sucesso revela os segredos mais belos da alma." },
-    { q = "A vida iluminará os seus passos de hoje em diante." },
-    { q = "O sucesso revela a sua verdadeira essência." },
-    { q = "A perseverança revela a sua verdadeira essência." },
-    { q = "O amanhã vai transformar a sua realidade em breve." },
-    { q = "A beleza da alma revela os segredos mais belos da alma." },
-    { q = "Um novo amanhecer abre caminhos que você não imaginava." },
-    { q = "O poder do agora está mais perto do que você imagina." },
-    { q = "O universo iluminará os seus passos de hoje em diante." },
-    { q = "A paciência multiplica as suas alegrias." },
-    { q = "A verdadeira amizade iluminará os seus passos de hoje em diante." },
-    { q = "A beleza da alma revela a sua verdadeira essência." },
-    { q = "A força de vontade multiplica as suas alegrias." },
-    { q = "A sabedoria é o reflexo do seu coração puro." },
-    { q = "O conhecimento cria laços que o tempo não apaga." },
-    { q = "O perdão é a luz que afasta a escuridão." },
-    { q = "A harmonia é a chave para abrir muitas portas." },
-    { q = "A sabedoria vai lhe proporcionar momentos inesquecíveis." },
-    { q = "A sabedoria é o seu maior tesouro escondido." },
-    { q = "O seu esforço nunca se esgota quando é verdadeiro." },
-    { q = "O verdadeiro amigo traz recompensas inestimáveis." },
-    { q = "O otimismo revela a sua verdadeira essência." },
-    { q = "A bondade é a chave para abrir muitas portas." },
-    { q = "A sabedoria é o primeiro passo para grandes conquistas." },
-    { q = "O verdadeiro amigo nunca se esgota quando é verdadeiro." },
-    { q = "Uma nova oportunidade iluminará os seus passos de hoje em diante." },
-    { q = "A sua criatividade traz a calma após a tempestade." },
-    { q = "A paz interior é um presente que você deve abraçar." },
-    { q = "A paz interior lhe trará uma grande surpresa muito em breve." },
-    { q = "A intuição está prestes a bater na sua porta." },
-    { q = "Um grande amor é a luz que afasta a escuridão." },
-    { q = "A esperança vai lhe proporcionar momentos inesquecíveis." },
-    { q = "A intuição conspira a seu favor neste momento." },
-    { q = "A sorte recompensa os que sabem esperar." },
-    { q = "Uma nova oportunidade guiará você por águas mais calmas." },
-    { q = "O seu destino é a luz que afasta a escuridão." },
-    { q = "O otimismo abre caminhos que você não imaginava." },
-    { q = "A harmonia guiará você por águas mais calmas." },
-    { q = "A perseverança cria laços que o tempo não apaga." },
-    { q = "A força de vontade é a chave para abrir muitas portas." },
-    { q = "A harmonia vai transformar a sua realidade em breve." },
-    { q = "A intuição revela os segredos mais belos da alma." },
-    { q = "O poder do agora é o reflexo da sua alma pura." },
-    { q = "O respeito está prestes a bater na sua porta." },
-    { q = "A coragem é um presente que você deve abraçar." },
-    { q = "A gratidão é o seu maior tesouro escondido." },
-    { q = "O amanhã revela os segredos mais belos da alma." },
-    { q = "O conhecimento vai lhe proporcionar momentos inesquecíveis." },
-    { q = "A paz interior é o primeiro passo para grandes conquistas." },
-    { q = "A vida mudará a sua visão do mundo." },
-    { q = "O amanhã nasce das sementes que você planta hoje." },
-    { q = "A jornada é um presente que você deve abraçar." },
-    { q = "A paz interior cria laços que o tempo não apaga." },
-    { q = "A força de vontade é o primeiro passo para grandes conquistas." },
-    { q = "O verdadeiro amigo é um presente que você deve abraçar." },
-    { q = "O seu coração é um presente que você deve abraçar." },
-    { q = "A coragem fortalece o seu espírito para os desafios." },
-    { q = "A compaixão nasce das sementes que você planta hoje." },
-    { q = "O conhecimento revela a sua verdadeira essência." },
-    { q = "A intuição é o primeiro passo para grandes conquistas." },
-    { q = "A gentileza é o primeiro passo para grandes conquistas." },
-    { q = "A beleza da alma guiará você por águas mais calmas." },
-    { q = "O acaso é o reflexo da sua alma pura." },
-    { q = "Um novo amanhecer guiará você por águas mais calmas." },
-    { q = "A gratidão lhe trará uma grande surpresa muito em breve." },
-    { q = "A vida nunca se esgota quando é verdadeira." },
-    { q = "A gratidão traz recompensas inestimáveis." },
-    { q = "A jornada é o primeiro passo para grandes conquistas." },
-    { q = "A coragem mudará a sua visão do mundo." },
-    { q = "O amor verdadeiro traz a calma após a tempestade." },
-    { q = "A esperança é um presente que você deve abraçar." },
-    { q = "A jornada floresce no momento certo." },
-    { q = "O entusiasmo é o seu maior tesouro escondido." },
-    { q = "A luz dentro de você cura até as feridas mais profundas." },
-    { q = "A beleza da alma está prestes a bater na sua porta." },
-    { q = "A força de vontade fortalece o seu espírito para os desafios." },
-    { q = "A fé é a fundação de um futuro brilhante." },
-    { q = "A força de vontade sempre encontra uma maneira de florescer." },
-    { q = "A perseverança traz a calma após a tempestade." },
-    { q = "O verdadeiro amigo lhe trará uma grande surpresa muito em breve." },
-    { q = "O acaso vai transformar a sua realidade em breve." },
-    { q = "Um pequeno gesto está prestes a bater na sua porta." },
-    { q = "A sabedoria revela os segredos mais belos da alma." },
-    { q = "O entusiasmo é a chave para abrir muitas portas." },
-    { q = "O perdão revela a sua verdadeira essência." },
-    { q = "A luz dentro de você cria laços que o tempo não apaga." },
-    { q = "A sorte é a luz que afasta a escuridão." },
-    { q = "A vida guiará você por águas mais calmas." },
-    { q = "A fé lhe trará uma grande surpresa muito em breve." },
-    { q = "A coragem lhe trará uma grande surpresa muito em breve." },
-    { q = "A perseverança conspira a seu favor neste momento." },
-    { q = "O acaso supera qualquer obstáculo no caminho." },
-    { q = "O tempo revela os segredos mais belos da alma." },
-    { q = "Um sorriso sincero lhe trará uma grande surpresa muito em breve." },
 }
 
--- Lista dinâmica de frases locais (inicializada vazia; será populada a partir do arquivo)
+local DEFAULT_FORTUNES_EN = {
+    { q = "A small gesture multiplies your joys." },
+    { q = "Hope will light your steps from today onwards." },
+    { q = "True happiness will change your view of the world." },
+    { q = "The light within you will change your view of the world." },
+    { q = "Intuition will give you unforgettable moments." },
+    { q = "A positive attitude overcomes any obstacle on the path." },
+    { q = "Courage multiplies your joys." },
+    { q = "The journey rewards those who know how to wait." },
+    { q = "Enthusiasm overcomes any obstacle on the path." },
+    { q = "Knowledge brings calm after the storm." },
+    { q = "A new opportunity is closer than you think." },
+    { q = "Your heart will give you the answer you seek." },
+    { q = "A sincere smile always finds a way to bloom." },
+    { q = "Luck is about to knock on your door." },
+    { q = "True happiness multiplies your joys." },
+    { q = "A new opportunity reveals your true essence." },
+    { q = "Willpower reveals your true essence." },
+    { q = "A positive attitude brings calm after the storm." },
+    { q = "A true friend is born from the seeds you plant today." },
+    { q = "A new dawn never runs out when it is true." },
+    { q = "True happiness creates bonds that time cannot erase." },
+    { q = "The power of now multiplies your joys." },
+    { q = "True friendship is the reflection of your pure heart." },
+    { q = "Respect is closer than you think." },
+    { q = "Believe in your dreams, they are closer than you think." },
+    { q = "Your destiny blooms at the right moment." },
+    { q = "A positive attitude will transform your reality soon." },
+    { q = "Time is the reflection of your pure soul." },
+    { q = "Your heart creates bonds that time cannot erase." },
+    { q = "The light within you will give you the answer you seek." },
+    { q = "Life heals even the deepest wounds." },
+    { q = "Kindness is your greatest hidden treasure." },
+    { q = "A sincere smile is about to knock on your door." },
+    { q = "Faith conspires in your favor at this moment." },
+    { q = "Enthusiasm is a gift you must embrace." },
+    { q = "Patience is the foundation of a bright future." },
+    { q = "Willpower conspires in your favor at this moment." },
+    { q = "Faith rewards those who know how to wait." },
+    { q = "Follow your heart, but take your brain with you." },
+    { q = "A new opportunity multiplies your joys." },
+}
+
+-- Alias para compatibilidade
+local DEFAULT_FORTUNES = DEFAULT_FORTUNES_PT
+
 local local_fortunes = {}
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- APIs disponíveis (cada uma com chave, nome, descrição e função de busca)
+-- APIs disponíveis
 -- ═════════════════════════════════════════════════════════════════════════════
 local API_LIST = {
     {
@@ -563,26 +305,29 @@ local BiscoitoDaSorte = InputContainer:extend{
 }
 
 function BiscoitoDaSorte:init()
+    math.randomseed(os.time() + math.random(10000))
     self.ui.menu:registerToMainMenu(self)
-    math.randomseed(os.time())
 
-    -- Determina o diretório do plugin (pasta onde este main.lua está)
     self.plugin_dir = self:getPluginDirectory()
     self.frases_file = self.plugin_dir .. "/frases.txt"
 
-    -- Carrega configurações: tabela com chave = true/false para cada API
     local default_enabled = {}
     for _, api in ipairs(API_LIST) do
         default_enabled[api.key] = true
     end
     self.enabled_apis = G_reader_settings:readSetting("biscoitodasorte_apis") or default_enabled
-
-    -- Carrega idioma
     self.language = G_reader_settings:readSetting("biscoitodasorte_language") or "pt"
 
-    -- Garante que o arquivo de frases exista (cria com padrão se necessário)
+    if G_reader_settings:readSetting("biscoitodasorte_one_per_day") == nil then
+        self.one_per_day = true
+        G_reader_settings:saveSetting("biscoitodasorte_one_per_day", true)
+    else
+        self.one_per_day = G_reader_settings:readSetting("biscoitodasorte_one_per_day")
+    end
+
+    self.last_cookie_date = G_reader_settings:readSetting("biscoitodasorte_last_date") or ""
+
     self:ensureFortuneFile()
-    -- Carrega as frases locais do arquivo
     self:loadFortunesFromFile()
 end
 
@@ -592,24 +337,26 @@ function BiscoitoDaSorte:getTranslation(key)
     if t and t[key] then
         return t[key]
     end
-    -- fallback para português
     if translations.pt and translations.pt[key] then
         return translations.pt[key]
     end
     return key
 end
 
---- Obtém o diretório onde este plugin está instalado.
+function BiscoitoDaSorte:getRandomSymbol()
+    return FOOTER_SYMBOLS[math.random(1, #FOOTER_SYMBOLS)]
+end
+
+function BiscoitoDaSorte:refreshMenu()
+    self.ui.menu:registerToMainMenu(self)
+end
+
 function BiscoitoDaSorte:getPluginDirectory()
-    if self.path then
-        return self.path
-    end
+    if self.path then return self.path end
     local source = debug.getinfo(1, "S").source
     if source and source:match("^@") then
         local dir = source:match("^@(.*/)main%.lua$") or source:match("^@(.*/)[^/]+$")
-        if dir then
-            return dir
-        end
+        if dir then return dir end
     end
     local ok, DataStorage = pcall(require, "datastorage")
     if ok and DataStorage then
@@ -618,35 +365,37 @@ function BiscoitoDaSorte:getPluginDirectory()
     return "./plugins/biscoitodasorte.koplugin"
 end
 
---- Cria o arquivo frases.txt com as frases padrão se ele não existir.
 function BiscoitoDaSorte:ensureFortuneFile()
     if not util.fileExists(self.frases_file) then
         self:writeDefaultFortunesToFile()
     end
 end
 
---- Escreve as frases padrão no arquivo frases.txt.
+function BiscoitoDaSorte:getDefaultFortunesForLanguage()
+    if self.language == "en" then
+        return DEFAULT_FORTUNES_EN
+    end
+    return DEFAULT_FORTUNES_PT
+end
+
 function BiscoitoDaSorte:writeDefaultFortunesToFile()
     local file, err = io.open(self.frases_file, "w")
     if not file then
         logger.warn("BiscoitoDaSorte: não foi possível criar", self.frases_file, err)
         return false
     end
-    for _, entry in ipairs(DEFAULT_FORTUNES) do
+    local fortunes = self:getDefaultFortunesForLanguage()
+    for _, entry in ipairs(fortunes) do
         local line = entry.q
-        if entry.a then
-            line = line .. "|" .. entry.a
-        end
+        if entry.a then line = line .. "|" .. entry.a end
         file:write(line .. "\n")
     end
     file:close()
     return true
 end
 
---- Carrega as frases do arquivo frases.txt para a tabela local_fortunes.
 function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
     if show_msg == nil then show_msg = false end
-
     local file, err = io.open(self.frases_file, "r")
     if not file then
         logger.warn("BiscoitoDaSorte: não foi possível abrir", self.frases_file, err)
@@ -654,14 +403,14 @@ function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
             UIManager:show(InfoMessage:new{
                 text = self:getTranslation("error_opening") .. tostring(err),
             })
+            UIManager:setDirty(nil, "full")
         end
         return false
     end
-
     local new_list = {}
     local line_count = 0
     for line in file:lines() do
-        line = line:gsub("^%s+", ""):gsub("%s+$", "") -- trim
+        line = line:gsub("^%s+", ""):gsub("%s+$", "")
         if line ~= "" then
             local quote, author
             local sep_pos = line:find("[|\t]")
@@ -680,26 +429,26 @@ function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
         end
     end
     file:close()
-
     if line_count == 0 then
         if show_msg then
             UIManager:show(InfoMessage:new{
                 text = self:getTranslation("empty_file"),
             })
+            UIManager:setDirty(nil, "full")
         end
+        local_fortunes = self:getDefaultFortunesForLanguage()
         return false
     end
-
     local_fortunes = new_list
     if show_msg then
         UIManager:show(InfoMessage:new{
             text = string.format(self:getTranslation("phrases_loaded"), line_count),
         })
+        UIManager:setDirty(nil, "full")
     end
     return true
 end
 
---- Restaura as frases padrão (sobrescreve o arquivo e recarrega).
 function BiscoitoDaSorte:restoreDefaultFortunes()
     if self:writeDefaultFortunesToFile() then
         self:loadFortunesFromFile(true)
@@ -707,40 +456,37 @@ function BiscoitoDaSorte:restoreDefaultFortunes()
         UIManager:show(InfoMessage:new{
             text = self:getTranslation("error_restoring"),
         })
+        UIManager:setDirty(nil, "full")
     end
 end
 
---- Exibe uma lista com as frases carregadas.
 function BiscoitoDaSorte:showLoadedFortunes()
     if #local_fortunes == 0 then
         UIManager:show(InfoMessage:new{
             text = self:getTranslation("no_phrases"),
         })
+        UIManager:setDirty(nil, "full")
         return
     end
-
     local lines = {}
     local max = math.min(20, #local_fortunes)
     for i = 1, max do
         local entry = local_fortunes[i]
         local line = entry.q
-        if entry.a then
-            line = line .. " — " .. entry.a
-        end
+        if entry.a then line = line .. " — " .. entry.a end
         table.insert(lines, tostring(i) .. ". " .. line)
     end
     if #local_fortunes > 20 then
         table.insert(lines, "... e mais " .. (#local_fortunes - 20) .. " frases.")
     end
-
     local msg = table.concat(lines, "\n")
     UIManager:show(InfoMessage:new{
         text = msg,
         timeout = 8,
     })
+    UIManager:setDirty(nil, "full")
 end
 
---- Adiciona uma nova frase ao arquivo frases.txt.
 function BiscoitoDaSorte:addFortune()
     local input_dialog
     input_dialog = InputDialog:new{
@@ -752,6 +498,7 @@ function BiscoitoDaSorte:addFortune()
                     text = self:getTranslation("cancel"),
                     callback = function()
                         UIManager:close(input_dialog)
+                        UIManager:setDirty(nil, "full")
                     end,
                 },
                 {
@@ -765,69 +512,54 @@ function BiscoitoDaSorte:addFortune()
                                 file:write(phrase .. "\n")
                                 file:close()
                                 self:loadFortunesFromFile()
+                                UIManager:close(input_dialog)
                                 UIManager:show(InfoMessage:new{
                                     text = self:getTranslation("phrase_added"),
                                 })
+                                UIManager:setDirty(nil, "full")
                             else
+                                UIManager:close(input_dialog)
                                 UIManager:show(InfoMessage:new{
                                     text = self:getTranslation("error_saving") .. tostring(err),
                                 })
+                                UIManager:setDirty(nil, "full")
                             end
                         else
                             UIManager:show(InfoMessage:new{
                                 text = self:getTranslation("phrase_empty"),
                             })
+                            UIManager:setDirty(nil, "full")
                         end
-                        UIManager:close(input_dialog)
                     end,
                 },
             },
         },
     }
     UIManager:show(input_dialog)
+    UIManager:setDirty(nil, "full")
     input_dialog:onShowKeyboard()
 end
 
---- Altera o idioma do plugin
-function BiscoitoDaSorte:changeLanguage()
-    local lang_dialog
-    lang_dialog = InputDialog:new{
-        title = self:getTranslation("language"),
-        input_hint = "pt ou en",
-        buttons = {
-            {
-                {
-                    text = self:getTranslation("cancel"),
-                    callback = function()
-                        UIManager:close(lang_dialog)
-                    end,
-                },
-                {
-                    text = self:getTranslation("portuguese"),
-                    callback = function()
-                        self.language = "pt"
-                        G_reader_settings:saveSetting("biscoitodasorte_language", "pt")
-                        UIManager:close(lang_dialog)
-                        UIManager:show(InfoMessage:new{
-                            text = "Idioma alterado para Português. Reinicie o KOReader para aplicar todas as mudanças.",
-                        })
-                    end,
-                },
-                {
-                    text = self:getTranslation("english"),
-                    callback = function()
-                        self.language = "en"
-                        G_reader_settings:saveSetting("biscoitodasorte_language", "en")
-                        UIManager:close(lang_dialog)
-                        UIManager:show(InfoMessage:new{
-                            text = "Language changed to English. Restart KOReader to apply all changes.",
-                        })
-                    end,
-                },
-            },
-        },
-    }
-    UIManager:show(lang_dialog)
+function BiscoitoDaSorte:canOpenCookieToday()
+    if not self.one_per_day then return true end
+    local today = os.date("%Y-%m-%d")
+    if self.last_cookie_date == today then return false end
+    return true
+end
+
+function BiscoitoDaSorte:markCookieOpened()
+    local today = os.date("%Y-%m-%d")
+    self.last_cookie_date = today
+    G_reader_settings:saveSetting("biscoitodasorte_last_date", today)
+end
+
+function BiscoitoDaSorte:toggleOnePerDay()
+    self.one_per_day = not self.one_per_day
+    G_reader_settings:saveSetting("biscoitodasorte_one_per_day", self.one_per_day)
+    UIManager:show(InfoMessage:new{
+        text = self.one_per_day and self:getTranslation("one_per_day_enabled") or self:getTranslation("one_per_day_disabled"),
+    })
+    UIManager:setDirty(nil, "full")
 end
 
 -- ── rede ──────────────────────────────────────────────────────────────────────
@@ -835,7 +567,6 @@ end
 function BiscoitoDaSorte:makeRequest(url)
     local chunks  = {}
     local ok_flag, code
-
     local function doRequest()
         local opts = {
             url     = url,
@@ -849,47 +580,40 @@ function BiscoitoDaSorte:makeRequest(url)
             ok_flag, code = http.request(opts)
         end
     end
-
     local pcall_ok = pcall(doRequest)
-
     if pcall_ok and ok_flag and tonumber(code) == 200 then
         return table.concat(chunks)
     end
-
     logger.warn("BiscoitoDaSorte: falha em", url, "→", tostring(code))
     return nil
 end
 
---- Tenta buscar uma frase nas APIs habilitadas, em ordem aleatória.
 function BiscoitoDaSorte:fetchFortuneFromAPI()
     local enabled = {}
     for _, api in ipairs(API_LIST) do
-        if self.enabled_apis[api.key] then
-            table.insert(enabled, api)
-        end
+        if self.enabled_apis[api.key] then table.insert(enabled, api) end
     end
-    if #enabled == 0 then
-        return nil
-    end
-
+    if #enabled == 0 then return nil end
     for i = #enabled, 2, -1 do
         local j = math.random(i)
         enabled[i], enabled[j] = enabled[j], enabled[i]
     end
-
     for _, api in ipairs(enabled) do
         local result = api.fetch(self)
-        if result then
-            return result
-        end
+        if result then return result end
     end
-
     return nil
 end
 
--- ── frases locais ─────────────────────────────────────────────────────────────
-
 function BiscoitoDaSorte:getLocalFortune()
+    if #local_fortunes == 0 then
+        local fallback = self:getDefaultFortunesForLanguage()
+        if #fallback > 0 then
+            return fallback[math.random(1, #fallback)]
+        end
+        return { q = "A vida é bela. / Life is beautiful.", a = nil }
+    end
+    math.randomseed(os.time() + math.random(10000) + #local_fortunes)
     return local_fortunes[math.random(1, #local_fortunes)]
 end
 
@@ -902,6 +626,7 @@ local FortuneDialog = InputContainer:extend{
     offline = false,
     on_new  = nil,
     plugin  = nil,
+    symbol  = nil,
 }
 
 function FortuneDialog:init()
@@ -911,19 +636,15 @@ function FortuneDialog:init()
     local iw  = w - pad * 2
 
     local quote = self.quote or ""
-    if #quote > 420 then
-        quote = quote:sub(1, 417) .. "…"
-    end
+    if #quote > 420 then quote = quote:sub(1, 417) .. "…" end
 
     local body_text = quote
-    if self.author then
-        body_text = body_text .. "\n\n— " .. self.author
-    end
+    if self.author then body_text = body_text .. "\n\n— " .. self.author end
     if self.offline then
         body_text = body_text .. "\n\n" .. (self.plugin and self.plugin:getTranslation("offline_mode") or "Modo offline - frase local")
     end
 
-    local title_text = self.plugin and self.plugin:getTranslation("fortune_cookie") or "Biscoito da Sorte"
+    local title_text = "~ ★ ~\n" .. (self.plugin and self.plugin:getTranslation("fortune_cookie") or "Biscoito da Sorte")
 
     local title_w = TextWidget:new{
         text      = title_text,
@@ -934,7 +655,7 @@ function FortuneDialog:init()
     }
 
     local divider_w = TextWidget:new{
-        text      = "·  ·  ·",
+        text      = "─ ◇ ─ ◇ ─",
         face      = Font:getFace("x_smallinfofont"),
         fgcolor   = Blitbuffer.gray(0.5),
         max_width = iw,
@@ -948,18 +669,21 @@ function FortuneDialog:init()
         alignment = "center",
     }
 
+    local smile_w = TextWidget:new{
+        text      = self.symbol or "(｡•ᴗ•｡)♡",
+        face      = Font:getFace("cfont"),
+        max_width = iw,
+        alignment = "center",
+    }
+
     local btn_new = Button:new{
         text     = self.plugin and self.plugin:getTranslation("new") or "Novo",
         width    = math.floor(iw * 0.47),
         radius   = Size.radius.button,
         callback = function()
             UIManager:close(self)
-            UIManager:scheduleIn(0.15, function()
-                UIManager:setDirty(nil, "full")
-                if self.on_new then
-                    self.on_new()
-                end
-            end)
+            UIManager:setDirty(nil, "full")
+            if self.on_new then self.on_new() end
         end,
     }
 
@@ -969,9 +693,7 @@ function FortuneDialog:init()
         radius   = Size.radius.button,
         callback = function()
             UIManager:close(self)
-            UIManager:scheduleIn(0.1, function()
-                UIManager:setDirty(nil, "full")
-            end)
+            UIManager:setDirty(nil, "full")
         end,
     }
 
@@ -989,6 +711,8 @@ function FortuneDialog:init()
         divider_w,
         VerticalSpan:new{ width = Size.span.vertical_large },
         quote_w,
+        VerticalSpan:new{ width = Size.span.vertical_default },
+        smile_w,
         VerticalSpan:new{ width = Size.span.vertical_large },
         btns_row,
     }
@@ -1008,7 +732,7 @@ function FortuneDialog:init()
 end
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- Diálogo de configuração das APIs
+-- Diálogo de Configurações (unificado e remodelado)
 -- ═════════════════════════════════════════════════════════════════════════════
 local SettingsDialog = InputContainer:extend{
     plugin  = nil,
@@ -1029,20 +753,109 @@ function SettingsDialog:init()
         alignment = "center",
     }
 
-    local help = TextWidget:new{
-        text      = self.plugin:getTranslation("settings_help"),
-        face      = Font:getFace("x_smallinfofont"),
-        fgcolor   = Blitbuffer.gray(0.5),
-        max_width = iw,
-        alignment = "center",
-    }
+    local rows = VerticalGroup:new{ align = "left" }
 
-    local api_rows = VerticalGroup:new{ align = "left" }
+    -- ═══════════════ SEÇÃO 1: COMPORTAMENTO ═══════════════
+    local sec1_label = TextWidget:new{
+        text      = "— " .. self.plugin:getTranslation("one_per_day") .. " —",
+        face      = Font:getFace("smalltfont"),
+        bold      = true,
+        max_width = iw,
+        alignment = "left",
+    }
+    table.insert(rows, sec1_label)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
+
+    local one_mark = self.plugin.one_per_day and "☑" or "☐"
+    local one_label = "  " .. one_mark .. "  " .. self.plugin:getTranslation("one_per_day_desc")
+
+    local btn_one = Button:new{
+        text     = one_label,
+        width    = iw,
+        radius   = Size.radius.button,
+        callback = function()
+            self.plugin:toggleOnePerDay()
+            UIManager:close(self)
+            UIManager:show(SettingsDialog:new{
+                plugin  = self.plugin,
+                enabled = self.enabled,
+            })
+            UIManager:setDirty(nil, "full")
+        end,
+    }
+    table.insert(rows, btn_one)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_default })
+
+    -- ═══════════════ SEÇÃO 2: IDIOMA ═══════════════
+    local sec2_label = TextWidget:new{
+        text      = "— " .. self.plugin:getTranslation("language") .. " —",
+        face      = Font:getFace("smalltfont"),
+        bold      = true,
+        max_width = iw,
+        alignment = "left",
+    }
+    table.insert(rows, sec2_label)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
+
+    local current_lang = self.plugin.language
+    local pt_mark = (current_lang == "pt") and "☑" or "☐"
+    local en_mark = (current_lang == "en") and "☑" or "☐"
+
+    local lang_btns = HorizontalGroup:new{
+        align = "center",
+        Button:new{
+            text   = pt_mark .. " " .. self.plugin:getTranslation("portuguese"),
+            width  = math.floor(iw * 0.47),
+            radius = Size.radius.button,
+            callback = function()
+                self.plugin.language = "pt"
+                G_reader_settings:saveSetting("biscoitodasorte_language", "pt")
+                UIManager:close(self)
+                self.plugin:refreshMenu()
+                UIManager:show(SettingsDialog:new{
+                    plugin  = self.plugin,
+                    enabled = self.enabled,
+                })
+                UIManager:setDirty(nil, "full")
+            end,
+        },
+        HorizontalSpan:new{ width = math.floor(iw * 0.06) },
+        Button:new{
+            text   = en_mark .. " " .. self.plugin:getTranslation("english"),
+            width  = math.floor(iw * 0.47),
+            radius = Size.radius.button,
+            callback = function()
+                self.plugin.language = "en"
+                G_reader_settings:saveSetting("biscoitodasorte_language", "en")
+                UIManager:close(self)
+                self.plugin:refreshMenu()
+                UIManager:show(SettingsDialog:new{
+                    plugin  = self.plugin,
+                    enabled = self.enabled,
+                })
+                UIManager:setDirty(nil, "full")
+            end,
+        },
+    }
+    table.insert(rows, lang_btns)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_default })
+
+    -- ═══════════════ SEÇÃO 3: APIs ═══════════════
+    local sec3_label = TextWidget:new{
+        text      = "— " .. self.plugin:getTranslation("config_apis") .. " —",
+        face      = Font:getFace("smalltfont"),
+        bold      = true,
+        max_width = iw,
+        alignment = "left",
+    }
+    table.insert(rows, sec3_label)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
+
     for _, api in ipairs(API_LIST) do
         local key = api.key
         local enabled = self.enabled[key]
-        local mark = enabled and "☑ " or "☐ "
-        local label = mark .. api.name .. " — " .. api.desc
+        local mark = enabled and "☑" or "☐"
+        local label = "  " .. mark .. "  " .. api.name .. " — " .. api.desc
 
         local btn = Button:new{
             text     = label,
@@ -1058,13 +871,64 @@ function SettingsDialog:init()
                 UIManager:setDirty(nil, "full")
             end,
         }
-
-        table.insert(api_rows, btn)
-        table.insert(api_rows, VerticalSpan:new{ width = Size.span.vertical_small })
+        table.insert(rows, btn)
+        table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
     end
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_default })
 
-    local btn_save = Button:new{
-        text     = self.plugin:getTranslation("save"),
+    -- ═══════════════ SEÇÃO 4: FRASES LOCAIS ═══════════════
+    local sec4_label = TextWidget:new{
+        text      = "— " .. self.plugin:getTranslation("local_phrases") .. " —",
+        face      = Font:getFace("smalltfont"),
+        bold      = true,
+        max_width = iw,
+        alignment = "left",
+    }
+    table.insert(rows, sec4_label)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
+
+    local btn_add = Button:new{
+        text     = "  +  " .. self.plugin:getTranslation("add_phrase"),
+        width    = iw,
+        radius   = Size.radius.button,
+        callback = function()
+            UIManager:close(self)
+            UIManager:setDirty(nil, "full")
+            self.plugin:addFortune()
+        end,
+    }
+    table.insert(rows, btn_add)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
+
+    local btn_view = Button:new{
+        text     = "  " .. self.plugin:getTranslation("view_phrases"),
+        width    = iw,
+        radius   = Size.radius.button,
+        callback = function()
+            UIManager:close(self)
+            UIManager:setDirty(nil, "full")
+            self.plugin:showLoadedFortunes()
+        end,
+    }
+    table.insert(rows, btn_view)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_small })
+
+    local btn_restore = Button:new{
+        text     = "  " .. self.plugin:getTranslation("restore_default"),
+        width    = iw,
+        radius   = Size.radius.button,
+        callback = function()
+            UIManager:close(self)
+            UIManager:setDirty(nil, "full")
+            self.plugin:restoreDefaultFortunes()
+        end,
+    }
+    table.insert(rows, btn_restore)
+    table.insert(rows, VerticalSpan:new{ width = Size.span.vertical_large })
+
+    -- ═══════════════ BOTÃO FECHAR ═══════════════
+    local btn_close = Button:new{
+        text     = self.plugin:getTranslation("close"),
         width    = iw,
         radius   = Size.radius.button,
         callback = function()
@@ -1074,16 +938,13 @@ function SettingsDialog:init()
             UIManager:setDirty(nil, "full")
         end,
     }
+    table.insert(rows, btn_close)
 
     local content = VerticalGroup:new{
         align = "center",
         title,
-        VerticalSpan:new{ width = Size.span.vertical_default },
-        help,
         VerticalSpan:new{ width = Size.span.vertical_large },
-        api_rows,
-        VerticalSpan:new{ width = Size.span.vertical_large },
-        btn_save,
+        rows,
     }
 
     local dialog_frame = FrameContainer:new{
@@ -1115,38 +976,9 @@ function BiscoitoDaSorte:addToMainMenu(menu_items)
                 end,
             },
             {
-                text     = self:getTranslation("config_apis"),
+                text     = self:getTranslation("settings"),
                 callback = function()
                     self:showSettings()
-                end,
-            },
-            {
-                text     = self:getTranslation("local_phrases"),
-                sub_item_table = {
-                    {
-                        text = self:getTranslation("restore_default"),
-                        callback = function()
-                            self:restoreDefaultFortunes()
-                        end,
-                    },
-                    {
-                        text = self:getTranslation("view_phrases"),
-                        callback = function()
-                            self:showLoadedFortunes()
-                        end,
-                    },
-                    {
-                        text = self:getTranslation("add_phrase"),
-                        callback = function()
-                            self:addFortune()
-                        end,
-                    },
-                },
-            },
-            {
-                text     = self:getTranslation("language"),
-                callback = function()
-                    self:changeLanguage()
                 end,
             },
         },
@@ -1166,10 +998,20 @@ function BiscoitoDaSorte:showSettings()
 end
 
 function BiscoitoDaSorte:fetchAndShowFortune()
+    if not self:canOpenCookieToday() then
+        UIManager:show(InfoMessage:new{
+            text = self:getTranslation("already_opened_today"),
+            timeout = 4,
+        })
+        UIManager:setDirty(nil, "full")
+        return
+    end
+
     local loading = InfoMessage:new{
-        text = self:getTranslation("opening_cookie"),
+        text = "♨ " .. self:getTranslation("opening_cookie"),
     }
     UIManager:show(loading)
+    UIManager:setDirty(nil, "full")
 
     UIManager:scheduleIn(0.6, function()
         local fortune
@@ -1177,14 +1019,13 @@ function BiscoitoDaSorte:fetchAndShowFortune()
 
         if NetworkMgr:isConnected() then
             fortune = self:fetchFortuneFromAPI()
-            if not fortune then
-                offline = true
-            end
+            if not fortune then offline = true end
         else
             offline = true
         end
 
         fortune = fortune or self:getLocalFortune()
+        self:markCookieOpened()
 
         UIManager:close(loading)
 
@@ -1193,12 +1034,12 @@ function BiscoitoDaSorte:fetchAndShowFortune()
             author  = fortune.a,
             offline = offline,
             plugin  = self,
+            symbol  = self:getRandomSymbol(),
             on_new  = function()
                 self:fetchAndShowFortune()
             end,
         }
         UIManager:show(dlg)
-
         UIManager:setDirty(nil, "full")
     end)
 end
