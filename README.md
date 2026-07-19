@@ -1,6 +1,6 @@
 PORTUGUÊS
 
-# Biscoito da Sorte
+# Biscoito da Sorte (Fortune Cookie)
 
 Plugin para KOReader que exibe frases inspiradoras no estilo biscoito da sorte. Desenvolvido com o auxílio do DeepSeek. Testado no Kindle Basic 2022.
 
