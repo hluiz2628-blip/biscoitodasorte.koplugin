@@ -1,7 +1,8 @@
 --[[
-    biscoitodasorte.koplugin — Biscoito da Sorte
-    =============================================
+    biscoitodasorte.koplugin — Biscoito da Sorte / Fortune Cookie
+    ============================================================
     Exibe uma frase inspiradora ao estilo biscoito da sorte.
+    Displays an inspirational phrase in fortune cookie style.
 
     Estratégia de APIs (gratuitas, sem autenticação):
       1. ZenQuotes  → https://zenquotes.io/api/random   (frases com autor)
@@ -52,6 +53,78 @@ local util             = require("util")
 
 -- Suporte HTTPS via LuaSec (disponível na maioria das builds modernas do KOReader)
 local https_ok, ssl_https = pcall(require, "ssl.https")
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Sistema de tradução
+-- ═════════════════════════════════════════════════════════════════════════════
+local function T(text)
+    return text
+end
+
+local translations = {
+    pt = {
+        fortune_cookie = "Biscoito da Sorte",
+        open_cookie = "Abrir biscoito",
+        config_apis = "Configurar APIs",
+        local_phrases = "Frases locais",
+        restore_default = "Restaurar padrão",
+        view_phrases = "Ver frases carregadas",
+        add_phrase = "Adicionar frase",
+        new = "Novo",
+        close = "Fechar",
+        opening_cookie = "Abrindo seu biscoito…",
+        offline_mode = "Modo offline - frase local",
+        settings_title = "Configurar APIs",
+        settings_help = "Toque no nome para ativar/desativar",
+        save = "Salvar",
+        new_phrase_title = "Nova frase",
+        phrase_hint = "Digite a frase (sem autor)",
+        cancel = "Cancelar",
+        add = "Adicionar",
+        phrase_added = "Frase adicionada com sucesso!",
+        phrase_empty = "A frase não pode estar vazia.",
+        error_saving = "Erro ao salvar a frase: ",
+        error_opening = "Erro ao abrir o arquivo de frases: ",
+        error_restoring = "Erro ao restaurar o arquivo de frases padrão.",
+        no_phrases = "Nenhuma frase local carregada.",
+        empty_file = "Arquivo de frases vazio ou sem frases válidas.",
+        phrases_loaded = "Carregadas %d frases do arquivo interno.",
+        language = "Idioma / Language",
+        portuguese = "Português",
+        english = "English",
+    },
+    en = {
+        fortune_cookie = "Fortune Cookie",
+        open_cookie = "Open cookie",
+        config_apis = "Configure APIs",
+        local_phrases = "Local phrases",
+        restore_default = "Restore default",
+        view_phrases = "View loaded phrases",
+        add_phrase = "Add phrase",
+        new = "New",
+        close = "Close",
+        opening_cookie = "Opening your cookie…",
+        offline_mode = "Offline mode - local phrase",
+        settings_title = "Configure APIs",
+        settings_help = "Tap name to enable/disable",
+        save = "Save",
+        new_phrase_title = "New phrase",
+        phrase_hint = "Type the phrase (without author)",
+        cancel = "Cancel",
+        add = "Add",
+        phrase_added = "Phrase added successfully!",
+        phrase_empty = "Phrase cannot be empty.",
+        error_saving = "Error saving phrase: ",
+        error_opening = "Error opening phrases file: ",
+        error_restoring = "Error restoring default phrases file.",
+        no_phrases = "No local phrases loaded.",
+        empty_file = "Phrases file empty or no valid phrases.",
+        phrases_loaded = "Loaded %d phrases from internal file.",
+        language = "Idioma / Language",
+        portuguese = "Português",
+        english = "English",
+    }
+}
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- Frases locais padrão (fallback offline)
@@ -504,20 +577,33 @@ function BiscoitoDaSorte:init()
     end
     self.enabled_apis = G_reader_settings:readSetting("biscoitodasorte_apis") or default_enabled
 
+    -- Carrega idioma
+    self.language = G_reader_settings:readSetting("biscoitodasorte_language") or "pt"
+
     -- Garante que o arquivo de frases exista (cria com padrão se necessário)
     self:ensureFortuneFile()
     -- Carrega as frases locais do arquivo
     self:loadFortunesFromFile()
 end
 
+function BiscoitoDaSorte:getTranslation(key)
+    local lang = self.language or "pt"
+    local t = translations[lang]
+    if t and t[key] then
+        return t[key]
+    end
+    -- fallback para português
+    if translations.pt and translations.pt[key] then
+        return translations.pt[key]
+    end
+    return key
+end
+
 --- Obtém o diretório onde este plugin está instalado.
--- Utiliza o caminho fornecido pelo KOReader (self.path), que é a forma mais confiável.
 function BiscoitoDaSorte:getPluginDirectory()
-    -- O KOReader define self.path com o diretório do plugin ao carregá-lo
     if self.path then
         return self.path
     end
-    -- Fallback: tenta obter via debug.getinfo (útil em versões antigas ou cenários incomuns)
     local source = debug.getinfo(1, "S").source
     if source and source:match("^@") then
         local dir = source:match("^@(.*/)main%.lua$") or source:match("^@(.*/)[^/]+$")
@@ -525,12 +611,10 @@ function BiscoitoDaSorte:getPluginDirectory()
             return dir
         end
     end
-    -- Fallback adicional: diretório de dados do KOReader
     local ok, DataStorage = pcall(require, "datastorage")
     if ok and DataStorage then
         return DataStorage:getDataDir() .. "/plugins/biscoitodasorte.koplugin"
     end
-    -- Último recurso (improvável, mas evita nil)
     return "./plugins/biscoitodasorte.koplugin"
 end
 
@@ -560,7 +644,6 @@ function BiscoitoDaSorte:writeDefaultFortunesToFile()
 end
 
 --- Carrega as frases do arquivo frases.txt para a tabela local_fortunes.
--- @param show_msg se true, exibe mensagem (padrão false para inicialização silenciosa)
 function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
     if show_msg == nil then show_msg = false end
 
@@ -569,7 +652,7 @@ function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
         logger.warn("BiscoitoDaSorte: não foi possível abrir", self.frases_file, err)
         if show_msg then
             UIManager:show(InfoMessage:new{
-                text = "Erro ao abrir o arquivo de frases: " .. tostring(err),
+                text = self:getTranslation("error_opening") .. tostring(err),
             })
         end
         return false
@@ -601,7 +684,7 @@ function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
     if line_count == 0 then
         if show_msg then
             UIManager:show(InfoMessage:new{
-                text = "Arquivo de frases vazio ou sem frases válidas.",
+                text = self:getTranslation("empty_file"),
             })
         end
         return false
@@ -610,7 +693,7 @@ function BiscoitoDaSorte:loadFortunesFromFile(show_msg)
     local_fortunes = new_list
     if show_msg then
         UIManager:show(InfoMessage:new{
-            text = string.format("Carregadas %d frases do arquivo interno.", line_count),
+            text = string.format(self:getTranslation("phrases_loaded"), line_count),
         })
     end
     return true
@@ -619,10 +702,10 @@ end
 --- Restaura as frases padrão (sobrescreve o arquivo e recarrega).
 function BiscoitoDaSorte:restoreDefaultFortunes()
     if self:writeDefaultFortunesToFile() then
-        self:loadFortunesFromFile(true)  -- mostra mensagem
+        self:loadFortunesFromFile(true)
     else
         UIManager:show(InfoMessage:new{
-            text = "Erro ao restaurar o arquivo de frases padrão.",
+            text = self:getTranslation("error_restoring"),
         })
     end
 end
@@ -631,7 +714,7 @@ end
 function BiscoitoDaSorte:showLoadedFortunes()
     if #local_fortunes == 0 then
         UIManager:show(InfoMessage:new{
-            text = "Nenhuma frase local carregada.",
+            text = self:getTranslation("no_phrases"),
         })
         return
     end
@@ -661,18 +744,18 @@ end
 function BiscoitoDaSorte:addFortune()
     local input_dialog
     input_dialog = InputDialog:new{
-        title = "Nova frase",
-        input_hint = "Digite a frase (sem autor)",
+        title = self:getTranslation("new_phrase_title"),
+        input_hint = self:getTranslation("phrase_hint"),
         buttons = {
             {
                 {
-                    text = "Cancelar",
+                    text = self:getTranslation("cancel"),
                     callback = function()
                         UIManager:close(input_dialog)
                     end,
                 },
                 {
-                    text = "Adicionar",
+                    text = self:getTranslation("add"),
                     is_enter_default = true,
                     callback = function()
                         local phrase = input_dialog:getInputText()
@@ -683,16 +766,16 @@ function BiscoitoDaSorte:addFortune()
                                 file:close()
                                 self:loadFortunesFromFile()
                                 UIManager:show(InfoMessage:new{
-                                    text = "Frase adicionada com sucesso!",
+                                    text = self:getTranslation("phrase_added"),
                                 })
                             else
                                 UIManager:show(InfoMessage:new{
-                                    text = "Erro ao salvar a frase: " .. tostring(err),
+                                    text = self:getTranslation("error_saving") .. tostring(err),
                                 })
                             end
                         else
                             UIManager:show(InfoMessage:new{
-                                text = "A frase não pode estar vazia.",
+                                text = self:getTranslation("phrase_empty"),
                             })
                         end
                         UIManager:close(input_dialog)
@@ -703,6 +786,48 @@ function BiscoitoDaSorte:addFortune()
     }
     UIManager:show(input_dialog)
     input_dialog:onShowKeyboard()
+end
+
+--- Altera o idioma do plugin
+function BiscoitoDaSorte:changeLanguage()
+    local lang_dialog
+    lang_dialog = InputDialog:new{
+        title = self:getTranslation("language"),
+        input_hint = "pt ou en",
+        buttons = {
+            {
+                {
+                    text = self:getTranslation("cancel"),
+                    callback = function()
+                        UIManager:close(lang_dialog)
+                    end,
+                },
+                {
+                    text = self:getTranslation("portuguese"),
+                    callback = function()
+                        self.language = "pt"
+                        G_reader_settings:saveSetting("biscoitodasorte_language", "pt")
+                        UIManager:close(lang_dialog)
+                        UIManager:show(InfoMessage:new{
+                            text = "Idioma alterado para Português. Reinicie o KOReader para aplicar todas as mudanças.",
+                        })
+                    end,
+                },
+                {
+                    text = self:getTranslation("english"),
+                    callback = function()
+                        self.language = "en"
+                        G_reader_settings:saveSetting("biscoitodasorte_language", "en")
+                        UIManager:close(lang_dialog)
+                        UIManager:show(InfoMessage:new{
+                            text = "Language changed to English. Restart KOReader to apply all changes.",
+                        })
+                    end,
+                },
+            },
+        },
+    }
+    UIManager:show(lang_dialog)
 end
 
 -- ── rede ──────────────────────────────────────────────────────────────────────
@@ -769,13 +894,14 @@ function BiscoitoDaSorte:getLocalFortune()
 end
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- Widget de diálogo da frase (sem emojis)
+-- Widget de diálogo da frase
 -- ═════════════════════════════════════════════════════════════════════════════
 local FortuneDialog = InputContainer:extend{
     quote   = "",
     author  = nil,
     offline = false,
     on_new  = nil,
+    plugin  = nil,
 }
 
 function FortuneDialog:init()
@@ -794,11 +920,13 @@ function FortuneDialog:init()
         body_text = body_text .. "\n\n— " .. self.author
     end
     if self.offline then
-        body_text = body_text .. "\n\nModo offline - frase local"
+        body_text = body_text .. "\n\n" .. (self.plugin and self.plugin:getTranslation("offline_mode") or "Modo offline - frase local")
     end
 
+    local title_text = self.plugin and self.plugin:getTranslation("fortune_cookie") or "Biscoito da Sorte"
+
     local title_w = TextWidget:new{
-        text      = "Biscoito da Sorte",
+        text      = title_text,
         face      = Font:getFace("tfont"),
         bold      = true,
         max_width = iw,
@@ -821,7 +949,7 @@ function FortuneDialog:init()
     }
 
     local btn_new = Button:new{
-        text     = "Novo",
+        text     = self.plugin and self.plugin:getTranslation("new") or "Novo",
         width    = math.floor(iw * 0.47),
         radius   = Size.radius.button,
         callback = function()
@@ -836,7 +964,7 @@ function FortuneDialog:init()
     }
 
     local btn_close = Button:new{
-        text     = "Fechar",
+        text     = self.plugin and self.plugin:getTranslation("close") or "Fechar",
         width    = math.floor(iw * 0.47),
         radius   = Size.radius.button,
         callback = function()
@@ -894,7 +1022,7 @@ function SettingsDialog:init()
     local iw   = w - pad * 2
 
     local title = TextWidget:new{
-        text      = "Configurar APIs",
+        text      = self.plugin:getTranslation("settings_title"),
         face      = Font:getFace("tfont"),
         bold      = true,
         max_width = iw,
@@ -902,7 +1030,7 @@ function SettingsDialog:init()
     }
 
     local help = TextWidget:new{
-        text      = "Toque no nome para ativar/desativar",
+        text      = self.plugin:getTranslation("settings_help"),
         face      = Font:getFace("x_smallinfofont"),
         fgcolor   = Blitbuffer.gray(0.5),
         max_width = iw,
@@ -936,7 +1064,7 @@ function SettingsDialog:init()
     end
 
     local btn_save = Button:new{
-        text     = "Salvar",
+        text     = self.plugin:getTranslation("save"),
         width    = iw,
         radius   = Size.radius.button,
         callback = function()
@@ -977,43 +1105,49 @@ end
 -- ═════════════════════════════════════════════════════════════════════════════
 function BiscoitoDaSorte:addToMainMenu(menu_items)
     menu_items.biscoito_da_sorte = {
-        text         = "Biscoito da Sorte",
+        text         = self:getTranslation("fortune_cookie"),
         sorting_hint = "tools",
         sub_item_table = {
             {
-                text     = "Abrir biscoito",
+                text     = self:getTranslation("open_cookie"),
                 callback = function()
                     self:fetchAndShowFortune()
                 end,
             },
             {
-                text     = "Configurar APIs",
+                text     = self:getTranslation("config_apis"),
                 callback = function()
                     self:showSettings()
                 end,
             },
             {
-                text     = "Frases locais",
+                text     = self:getTranslation("local_phrases"),
                 sub_item_table = {
                     {
-                        text = "Restaurar padrão",
+                        text = self:getTranslation("restore_default"),
                         callback = function()
                             self:restoreDefaultFortunes()
                         end,
                     },
                     {
-                        text = "Ver frases carregadas",
+                        text = self:getTranslation("view_phrases"),
                         callback = function()
                             self:showLoadedFortunes()
                         end,
                     },
                     {
-                        text = "Adicionar frase",
+                        text = self:getTranslation("add_phrase"),
                         callback = function()
                             self:addFortune()
                         end,
                     },
                 },
+            },
+            {
+                text     = self:getTranslation("language"),
+                callback = function()
+                    self:changeLanguage()
+                end,
             },
         },
     }
@@ -1033,7 +1167,7 @@ end
 
 function BiscoitoDaSorte:fetchAndShowFortune()
     local loading = InfoMessage:new{
-        text = "Abrindo seu biscoito…",
+        text = self:getTranslation("opening_cookie"),
     }
     UIManager:show(loading)
 
@@ -1058,6 +1192,7 @@ function BiscoitoDaSorte:fetchAndShowFortune()
             quote   = fortune.q,
             author  = fortune.a,
             offline = offline,
+            plugin  = self,
             on_new  = function()
                 self:fetchAndShowFortune()
             end,
